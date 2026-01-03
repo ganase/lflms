@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ library_id }} | Little Free Library 管理</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body>
+    <main class="container">
+      <header class="header-row">
+        <div>
+          <h1>{{ library_id }}</h1>
+          <p>棚の写真をアップロードして記録します。</p>
+        </div>
+        <a class="text-link" href="{{ url_for('index') }}">一覧へ戻る</a>
+      </header>
+
+      <section class="card">
+        <h2>写真をアップロード</h2>
+        <form method="post" action="{{ url_for('upload_photo', library_id=library_id) }}" enctype="multipart/form-data" class="form">
+          <input type="file" name="photo" accept="image/*" capture="environment" required>
+          <button type="submit">アップロード</button>
+        </form>
+        {% if error %}
+          <p class="error">{{ error }}</p>
+        {% endif %}
+      </section>
+
+      <section class="card">
+        <h2>保存済み写真</h2>
+        {% if photos %}
+          <div class="photo-grid">
+            {% for photo in photos %}
+              <figure>
+                <img src="{{ url_for('uploaded_file', library_id=library_id, filename=photo) }}" alt="{{ library_id }}の棚写真">
+                <figcaption>{{ photo }}</figcaption>
+              </figure>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="muted">まだ写真が保存されていません。</p>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

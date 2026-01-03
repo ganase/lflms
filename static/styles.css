@@ -1,0 +1,116 @@
+:root {
+  color-scheme: light;
+  font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  background: #f7f7fb;
+  color: #1f2937;
+}
+
+body {
+  margin: 0;
+  padding: 24px 16px 48px;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  display: grid;
+  gap: 24px;
+}
+
+header h1 {
+  margin-bottom: 8px;
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.card {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+}
+
+input[type="text"],
+input[type="file"] {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+button {
+  padding: 10px 16px;
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+button:hover {
+  background: #1e40af;
+}
+
+.library-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.library-list a {
+  color: #1d4ed8;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.photo-grid img {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  object-fit: cover;
+}
+
+figure {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+figcaption {
+  font-size: 12px;
+  color: #6b7280;
+  word-break: break-all;
+}
+
+.text-link {
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.error {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.muted {
+  color: #6b7280;
+}

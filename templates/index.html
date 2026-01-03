@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Little Free Library 管理</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <h1>Little Free Library 管理</h1>
+        <p>リトルフリーライブラリのID登録と、棚の写真アップロードを行います。</p>
+      </header>
+
+      <section class="card">
+        <h2>ライブラリID登録</h2>
+        <form method="post" action="{{ url_for('create_library') }}" class="form">
+          <label for="library_id">ライブラリID</label>
+          <input
+            id="library_id"
+            name="library_id"
+            type="text"
+            placeholder="例: tokyo-001"
+            required
+            minlength="3"
+            maxlength="32"
+          >
+          <button type="submit">登録する</button>
+        </form>
+        {% if error %}
+          <p class="error">{{ error }}</p>
+        {% endif %}
+      </section>
+
+      <section class="card">
+        <h2>登録済みライブラリ</h2>
+        {% if libraries %}
+          <ul class="library-list">
+            {% for library in libraries %}
+              <li>
+                <a href="{{ url_for('library_detail', library_id=library) }}">{{ library }}</a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">まだ登録されたライブラリはありません。</p>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>
