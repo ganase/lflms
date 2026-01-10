@@ -1,2 +1,4 @@
 Flask>=2.3,<3
 gunicorn>=21.2,<22
+requests>=2.31,<3
+Pillow>=10.2,<11

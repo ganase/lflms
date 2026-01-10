@@ -8,9 +8,17 @@
   </head>
   <body>
     <main class="container">
-      <header>
-        <h1>Little Free Library 管理</h1>
-        <p>リトルフリーライブラリのID登録と、棚の写真アップロードを行います。</p>
+      <header class="header-row">
+        <div>
+          <h1>Little Free Library 管理</h1>
+          <p>リトルフリーライブラリのID登録と、棚の写真アップロードを行います。</p>
+        </div>
+        <div class="user-box">
+          <span>{{ email }}</span>
+          <form method="post" action="{{ url_for('logout') }}">
+            <button type="submit" class="secondary">ログアウト</button>
+          </form>
+        </div>
       </header>
 
       <section class="card">
