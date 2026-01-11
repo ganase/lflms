@@ -10,6 +10,14 @@ body {
   padding: 24px 16px 48px;
 }
 
+a {
+  color: #23b8c4;
+}
+
+a:hover {
+  color: #23b8c4;
+}
+
 .container {
   max-width: 960px;
   margin: 0 auto;
@@ -93,7 +101,6 @@ button.secondary:hover {
 }
 
 .library-list a {
-  color: #1d4ed8;
   text-decoration: none;
   font-weight: 600;
 }
@@ -162,7 +169,7 @@ figcaption {
   padding: 8px 14px;
   border-radius: 999px;
   background: #e2e8f0;
-  color: #1f2937;
+  color: #23b8c4;
   text-decoration: none;
   font-weight: 600;
 }

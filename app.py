@@ -69,11 +69,17 @@ def index() -> str:
     if guard:
         return guard
 
+    email = session.get("email")
     libraries = sorted(
         [p.name for p in DATA_DIR.iterdir() if p.is_dir()],
         key=str.casefold,
     )
-    return render_template("index.html", libraries=libraries, email=session.get("email"))
+    return render_template(
+        "index.html",
+        libraries=libraries,
+        email=email,
+        login_prefix=_email_prefix(email),
+    )
 
 
 @app.post("/libraries")
@@ -89,6 +95,7 @@ def create_library():
             libraries=_library_list(),
             error="IDは3〜32文字の英数字・ハイフン・アンダースコアで入力してください。",
             email=session.get("email"),
+            login_prefix=_email_prefix(session.get("email")),
         )
 
     library_path = DATA_DIR / library_id
@@ -98,6 +105,7 @@ def create_library():
             libraries=_library_list(),
             error="同じIDがすでに登録されています。",
             email=session.get("email"),
+            login_prefix=_email_prefix(session.get("email")),
         )
 
     library_path.mkdir(parents=True)
@@ -239,6 +247,12 @@ def _library_list() -> list[str]:
         [p.name for p in DATA_DIR.iterdir() if p.is_dir()],
         key=str.casefold,
     )
+
+
+def _email_prefix(email: str | None) -> str:
+    if not email:
+        return ""
+    return f" {email.split('@', 1)[0]}"
 
 
 def _photo_list(library_id: str) -> list[str]:
