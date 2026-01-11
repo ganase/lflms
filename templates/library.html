@@ -30,7 +30,7 @@
       <section class="card">
         <h2>写真をアップロード</h2>
         <form method="post" action="{{ url_for('upload_photo', library_id=library_id) }}" enctype="multipart/form-data" class="form">
-          <input type="file" name="photo" accept="image/*" capture="environment" required>
+          <input type="file" name="photo" accept="image/*,.heic" capture="environment" required>
           <button type="submit">アップロード</button>
         </form>
         {% if error %}
@@ -50,9 +50,9 @@
                   <div class="caption-name">{{ photo }}</div>
                   {% if record %}
                     <div class="caption-meta">
-                      <span>アップ日: {{ record.uploaded_at }}</span>
-                      {% if record.capture_date %}
-                        <span>撮影日: {{ record.capture_date }}</span>
+                      <span>アップ日: {{ record.uploaded_at_display }}</span>
+                      {% if record.capture_date_display %}
+                        <span>撮影日: {{ record.capture_date_display }}</span>
                       {% endif %}
                     </div>
                     {% if record.analysis and record.analysis.status == 'ok' %}
@@ -69,6 +69,11 @@
                     {% elif record.analysis %}
                       <div class="caption-meta muted">解析: {{ record.analysis.status }} {{ record.analysis.reason }}</div>
                     {% endif %}
+                    <form method="post" action="{{ url_for('update_photo_analysis', library_id=library_id, filename=photo) }}" class="form">
+                      <label for="books-{{ loop.index }}">書名/著者名/出版社名（1行に1件、区切りは「/」）</label>
+                      <textarea id="books-{{ loop.index }}" name="books" rows="4">{{ record.books_text }}</textarea>
+                      <button type="submit" class="secondary">編集内容を保存</button>
+                    </form>
                   {% endif %}
                 </figcaption>
               </figure>

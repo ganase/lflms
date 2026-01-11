@@ -24,7 +24,27 @@
         </div>
       </header>
 
-      <section class="card">
+      <nav class="tabs">
+        <button type="button" class="tab tab-button active" data-tab="list">登録済みリスト</button>
+        <button type="button" class="tab tab-button" data-tab="new">新規登録</button>
+      </nav>
+
+      <section class="card" data-tab-panel="list">
+        <h2>登録済みライブラリ</h2>
+        {% if libraries %}
+          <ul class="library-list">
+            {% for library in libraries %}
+              <li>
+                <a href="{{ url_for('library_detail', library_id=library) }}">{{ library }}</a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">まだ登録されたライブラリはありません。</p>
+        {% endif %}
+      </section>
+
+      <section class="card" data-tab-panel="new" hidden>
         <h2>ライブラリID登録</h2>
         <form method="post" action="{{ url_for('create_library') }}" class="form">
           <label for="library_id">ライブラリID</label>
@@ -43,21 +63,26 @@
           <p class="error">{{ error }}</p>
         {% endif %}
       </section>
-
-      <section class="card">
-        <h2>登録済みライブラリ</h2>
-        {% if libraries %}
-          <ul class="library-list">
-            {% for library in libraries %}
-              <li>
-                <a href="{{ url_for('library_detail', library_id=library) }}">{{ library }}</a>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="muted">まだ登録されたライブラリはありません。</p>
-        {% endif %}
-      </section>
     </main>
+    <script>
+      const defaultTab = "{{ 'new' if error else 'list' }}";
+      const tabs = document.querySelectorAll("[data-tab]");
+      const panels = document.querySelectorAll("[data-tab-panel]");
+
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          const target = tab.getAttribute("data-tab");
+          tabs.forEach((item) => item.classList.toggle("active", item === tab));
+          panels.forEach((panel) => {
+            panel.hidden = panel.getAttribute("data-tab-panel") !== target;
+          });
+        });
+      });
+
+      const initialTab = Array.from(tabs).find((tab) => tab.getAttribute("data-tab") === defaultTab);
+      if (initialTab) {
+        initialTab.click();
+      }
+    </script>
   </body>
 </html>
