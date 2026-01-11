@@ -10,6 +10,14 @@ body {
   padding: 24px 16px 48px;
 }
 
+a {
+  color: #23b8c4;
+}
+
+a:hover {
+  color: #23b8c4;
+}
+
 .container {
   max-width: 960px;
   margin: 0 auto;
@@ -61,6 +69,14 @@ input[type="email"] {
   font-size: 16px;
 }
 
+textarea {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  resize: vertical;
+}
+
 button {
   padding: 10px 16px;
   background: #9ca3af;
@@ -93,7 +109,6 @@ button.secondary:hover {
 }
 
 .library-list a {
-  color: #1d4ed8;
   text-decoration: none;
   font-weight: 600;
 }
@@ -146,11 +161,9 @@ figcaption {
 }
 
 .logo {
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  background: #e2e8f0;
-  object-fit: cover;
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
 }
 
 .tabs {
@@ -162,14 +175,31 @@ figcaption {
   padding: 8px 14px;
   border-radius: 999px;
   background: #e2e8f0;
-  color: #1f2937;
+  color: #23b8c4;
   text-decoration: none;
   font-weight: 600;
 }
 
 .tab.active {
-  background: #94a3b8;
-  color: #fff;
+  background: #e0f7f9;
+  color: #23b8c4;
+}
+
+.tab-button {
+  border: none;
+  cursor: pointer;
+  background: #e2e8f0;
+  color: #23b8c4;
+}
+
+.tab-button:hover {
+  background: #d7eef2;
+  color: #23b8c4;
+}
+
+.text-link {
+  color: #23b8c4;
+  text-decoration: none;
 }
 
 .table {
@@ -199,13 +229,13 @@ figcaption {
   gap: 2px;
 }
 
-.text-link {
-  color: #1d4ed8;
-  text-decoration: none;
-}
-
 .error {
   color: #dc2626;
+  font-weight: 600;
+}
+
+.message {
+  color: #23b8c4;
   font-weight: 600;
 }
 

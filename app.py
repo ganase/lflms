@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 import os
 import re
-from datetime import datetime, timezone
+import secrets
+import smtplib
+from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +21,7 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 try:
@@ -36,6 +40,38 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key")
 
 
+@app.get("/register")
+def register_form() -> str:
+    return render_template("register.html")
+
+
+@app.post("/register")
+def register_submit():
+    email = request.form.get("email", "").strip().lower()
+    if not EMAIL_PATTERN.match(email):
+        return render_template("register.html", error="有効なメールアドレスを入力してください。")
+
+    users = _load_users()
+    token = secrets.token_urlsafe(16)
+    users[email] = {
+        "email": email,
+        "password_hash": users.get(email, {}).get("password_hash"),
+        "verification_token": token,
+        "verified": False,
+    }
+    _save_users(users)
+
+    verification_url = url_for("verify_form", token=token, _external=True)
+    try:
+        _send_verification_email(email, verification_url)
+    except RuntimeError as exc:
+        return render_template("register.html", error=str(exc))
+    return render_template(
+        "register.html",
+        message="確認メールを送信しました。メールのリンクから認証してください。",
+    )
+
+
 @app.get("/login")
 def login_form() -> str:
     return render_template("login.html")
@@ -44,8 +80,18 @@ def login_form() -> str:
 @app.post("/login")
 def login_submit():
     email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
     if not EMAIL_PATTERN.match(email):
         return render_template("login.html", error="有効なメールアドレスを入力してください。")
+
+    users = _load_users()
+    user = users.get(email)
+    if not user or not user.get("password_hash"):
+        return render_template("login.html", error="登録済みのメールアドレスでログインしてください。")
+    if not user.get("verified"):
+        return render_template("login.html", error="メール認証が完了していません。")
+    if not check_password_hash(user["password_hash"], password):
+        return render_template("login.html", error="パスワードが正しくありません。")
 
     session["email"] = email
     return redirect(url_for("index"))
@@ -55,6 +101,37 @@ def login_submit():
 def logout():
     session.clear()
     return redirect(url_for("login_form"))
+
+
+@app.get("/verify/<token>")
+def verify_form(token: str) -> str:
+    email = _find_email_by_token(token)
+    if not email:
+        return render_template("verify.html", error="認証リンクが無効です。")
+    return render_template("verify.html", token=token)
+
+
+@app.post("/verify/<token>")
+def verify_submit(token: str):
+    email = _find_email_by_token(token)
+    if not email:
+        return render_template("verify.html", error="認証リンクが無効です。")
+
+    password = request.form.get("password", "")
+    confirm = request.form.get("password_confirm", "")
+    if len(password) < 8:
+        return render_template("verify.html", token=token, error="パスワードは8文字以上で入力してください。")
+    if password != confirm:
+        return render_template("verify.html", token=token, error="パスワードが一致しません。")
+
+    users = _load_users()
+    users[email]["password_hash"] = generate_password_hash(password)
+    users[email]["verified"] = True
+    users[email]["verification_token"] = None
+    _save_users(users)
+
+    session["email"] = email
+    return redirect(url_for("index"))
 
 
 def _require_login():
@@ -69,11 +146,17 @@ def index() -> str:
     if guard:
         return guard
 
+    email = session.get("email")
     libraries = sorted(
         [p.name for p in DATA_DIR.iterdir() if p.is_dir()],
         key=str.casefold,
     )
-    return render_template("index.html", libraries=libraries, email=session.get("email"))
+    return render_template(
+        "index.html",
+        libraries=libraries,
+        email=email,
+        login_prefix=_email_prefix(email),
+    )
 
 
 @app.post("/libraries")
@@ -89,6 +172,7 @@ def create_library():
             libraries=_library_list(),
             error="IDは3〜32文字の英数字・ハイフン・アンダースコアで入力してください。",
             email=session.get("email"),
+            login_prefix=_email_prefix(session.get("email")),
         )
 
     library_path = DATA_DIR / library_id
@@ -98,6 +182,7 @@ def create_library():
             libraries=_library_list(),
             error="同じIDがすでに登録されています。",
             email=session.get("email"),
+            login_prefix=_email_prefix(session.get("email")),
         )
 
     library_path.mkdir(parents=True)
@@ -119,7 +204,13 @@ def library_detail(library_id: str) -> str:
         reverse=True,
     )
     records = _load_records(library_id)
-    records_by_name = {record["filename"]: record for record in records}
+    records_by_name = {}
+    for record in records:
+        record_copy = dict(record)
+        record_copy["uploaded_at_display"] = _format_datetime_jst(record.get("uploaded_at"))
+        record_copy["capture_date_display"] = _format_datetime_jst(record.get("capture_date"))
+        record_copy["books_text"] = _books_text(record_copy)
+        records_by_name[record["filename"]] = record_copy
     return render_template(
         "library.html",
         library_id=library_id,
@@ -142,7 +233,7 @@ def library_records(library_id: str) -> str:
     records = _load_records(library_id)
     rows: list[dict[str, str]] = []
     for record in records:
-        uploaded_at = record.get("uploaded_at", "")
+        uploaded_at = _format_datetime_jst(record.get("uploaded_at", ""))
         books = (record.get("analysis") or {}).get("data", {}).get("books", [])
         if not books:
             rows.append(
@@ -203,7 +294,7 @@ def upload_photo(library_id: str):
             email=session.get("email"),
         )
 
-    timestamp = datetime.now(timezone.utc)
+    timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
     stored_name = f"{timestamp.strftime('%Y%m%dT%H%M%SZ')}_{filename}"
     stored_path = library_path / stored_name
     file.save(stored_path)
@@ -213,11 +304,53 @@ def upload_photo(library_id: str):
 
     record = {
         "filename": stored_name,
-        "uploaded_at": timestamp.isoformat(),
+        "uploaded_at": timestamp.isoformat(timespec="minutes"),
         "capture_date": capture_date,
         "analysis": analysis,
     }
     _append_record(library_id, record)
+
+    return redirect(url_for("library_detail", library_id=library_id))
+
+
+@app.post("/libraries/<library_id>/photos/<path:filename>/analysis")
+def update_photo_analysis(library_id: str, filename: str):
+    guard = _require_login()
+    if guard:
+        return guard
+
+    library_path = DATA_DIR / library_id
+    if not library_path.exists():
+        abort(404)
+
+    records = _load_records(library_id)
+    updated = False
+    for record in records:
+        if record.get("filename") != filename:
+            continue
+        lines = request.form.get("books", "").strip().splitlines()
+        books: list[dict[str, str]] = []
+        for line in lines:
+            if not line.strip():
+                continue
+            parts = [part.strip() for part in line.split("/", 2)]
+            while len(parts) < 3:
+                parts.append("")
+            books.append(
+                {
+                    "title": parts[0],
+                    "author": parts[1],
+                    "publisher": parts[2],
+                }
+            )
+        record["analysis"] = {"status": "ok", "data": {"books": books}}
+        updated = True
+        break
+
+    if updated:
+        record_path = _records_path(library_id)
+        with record_path.open("w", encoding="utf-8") as handle:
+            json.dump(records, handle, ensure_ascii=False, indent=2)
 
     return redirect(url_for("library_detail", library_id=library_id))
 
@@ -241,6 +374,12 @@ def _library_list() -> list[str]:
     )
 
 
+def _email_prefix(email: str | None) -> str:
+    if not email:
+        return ""
+    return f" {email.split('@', 1)[0]}"
+
+
 def _photo_list(library_id: str) -> list[str]:
     library_path = DATA_DIR / library_id
     return sorted(
@@ -251,6 +390,10 @@ def _photo_list(library_id: str) -> list[str]:
 
 def _records_path(library_id: str) -> Path:
     return DATA_DIR / library_id / "records.json"
+
+
+def _users_path() -> Path:
+    return DATA_DIR / "users.json"
 
 
 def _is_photo(path: Path) -> bool:
@@ -268,6 +411,29 @@ def _load_records(library_id: str) -> list[dict[str, Any]]:
         return json.load(handle)
 
 
+def _load_users() -> dict[str, dict[str, Any]]:
+    users_path = _users_path()
+    if not users_path.exists():
+        return {}
+    with users_path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _save_users(users: dict[str, dict[str, Any]]) -> None:
+    users_path = _users_path()
+    users_path.parent.mkdir(parents=True, exist_ok=True)
+    with users_path.open("w", encoding="utf-8") as handle:
+        json.dump(users, handle, ensure_ascii=False, indent=2)
+
+
+def _find_email_by_token(token: str) -> str | None:
+    users = _load_users()
+    for email, info in users.items():
+        if info.get("verification_token") == token:
+            return email
+    return None
+
+
 def _append_record(library_id: str, record: dict[str, Any]) -> None:
     records = _load_records(library_id)
     records.insert(0, record)
@@ -277,7 +443,14 @@ def _append_record(library_id: str, record: dict[str, Any]) -> None:
 
 
 def _records_map(library_id: str) -> dict[str, dict[str, Any]]:
-    return {record["filename"]: record for record in _load_records(library_id)}
+    records_by_name = {}
+    for record in _load_records(library_id):
+        record_copy = dict(record)
+        record_copy["uploaded_at_display"] = _format_datetime_jst(record.get("uploaded_at"))
+        record_copy["capture_date_display"] = _format_datetime_jst(record.get("capture_date"))
+        record_copy["books_text"] = _books_text(record_copy)
+        records_by_name[record["filename"]] = record_copy
+    return records_by_name
 
 
 def _extract_capture_date(path: Path) -> str | None:
@@ -299,7 +472,59 @@ def _extract_capture_date(path: Path) -> str | None:
     except ValueError:
         return None
 
-    return parsed.replace(tzinfo=timezone.utc).isoformat()
+    return parsed.replace(tzinfo=timezone.utc, second=0, microsecond=0).isoformat(timespec="minutes")
+
+
+def _format_datetime_jst(value: str | None) -> str:
+    if not value:
+        return ""
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return value
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    jst = parsed.astimezone(timezone(timedelta(hours=9)))
+    return jst.isoformat(timespec="minutes")
+
+
+def _books_text(record: dict[str, Any]) -> str:
+    books = (record.get("analysis") or {}).get("data", {}).get("books", [])
+    lines = []
+    for book in books:
+        title = str(book.get("title") or "").strip()
+        author = str(book.get("author") or "").strip()
+        publisher = str(book.get("publisher") or "").strip()
+        if not any([title, author, publisher]):
+            continue
+        lines.append(f"{title}/{author}/{publisher}".strip("/"))
+    return "\n".join(lines)
+
+
+def _send_verification_email(recipient: str, verification_url: str) -> None:
+    host = os.environ.get("SMTP_HOST")
+    port = int(os.environ.get("SMTP_PORT", "587"))
+    user = os.environ.get("SMTP_USER")
+    password = os.environ.get("SMTP_PASSWORD")
+    sender = os.environ.get("SMTP_FROM", user or "noreply@example.com")
+
+    if not host:
+        raise RuntimeError("SMTP_HOSTが未設定です。")
+
+    message = EmailMessage()
+    message["Subject"] = "メール認証のご案内"
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content(
+        "以下のリンクを開き、パスワードを設定して登録を完了してください。\n\n"
+        f"{verification_url}\n"
+    )
+
+    with smtplib.SMTP(host, port) as smtp:
+        smtp.starttls()
+        if user and password:
+            smtp.login(user, password)
+        smtp.send_message(message)
 
 
 def _analyze_image(path: Path) -> dict[str, Any]:
