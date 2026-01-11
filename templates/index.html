@@ -9,9 +9,12 @@
   <body>
     <main class="container">
       <header class="header-row">
-        <div>
-          <h1>Little Free Library 管理</h1>
-          <p>リトルフリーライブラリのID登録と、棚の写真アップロードを行います。</p>
+        <div class="title-row">
+          <img class="logo" src="{{ url_for('static', filename='logo.svg') }}" alt="Little Free Library アイコン">
+          <div>
+            <h1 class="title">Little Free Library management system</h1>
+            <p>リトルフリーライブラリのID登録と、棚の写真アップロードを行います。</p>
+          </div>
         </div>
         <div class="user-box">
           <span>{{ email }}</span>

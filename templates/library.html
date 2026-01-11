@@ -22,6 +22,11 @@
         </div>
       </header>
 
+      <nav class="tabs">
+        <a class="tab active" href="{{ url_for('library_detail', library_id=library_id) }}">写真</a>
+        <a class="tab" href="{{ url_for('library_records', library_id=library_id) }}">図書データ</a>
+      </nav>
+
       <section class="card">
         <h2>写真をアップロード</h2>
         <form method="post" action="{{ url_for('upload_photo', library_id=library_id) }}" enctype="multipart/form-data" class="form">
@@ -53,22 +58,10 @@
                     {% if record.analysis and record.analysis.status == 'ok' %}
                       {% if record.analysis.data.books %}
                         <div class="caption-meta">
-                          <span>書名:</span>
+                          <span>書名/著者名/出版社名</span>
                           <ul class="book-list">
                             {% for book in record.analysis.data.books %}
-                              <li>{{ book.title }}</li>
-                            {% endfor %}
-                          </ul>
-                          <span>著者:</span>
-                          <ul class="book-list">
-                            {% for book in record.analysis.data.books %}
-                              <li>{{ book.author }}</li>
-                            {% endfor %}
-                          </ul>
-                          <span>出版社:</span>
-                          <ul class="book-list">
-                            {% for book in record.analysis.data.books %}
-                              <li>{{ book.publisher }}</li>
+                              <li>{{ book.title }}/{{ book.author }}/{{ book.publisher }}</li>
                             {% endfor %}
                           </ul>
                         </div>

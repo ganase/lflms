@@ -129,6 +129,51 @@ def library_detail(library_id: str) -> str:
     )
 
 
+@app.get("/libraries/<library_id>/records")
+def library_records(library_id: str) -> str:
+    guard = _require_login()
+    if guard:
+        return guard
+
+    library_path = DATA_DIR / library_id
+    if not library_path.exists():
+        abort(404)
+
+    records = _load_records(library_id)
+    rows: list[dict[str, str]] = []
+    for record in records:
+        uploaded_at = record.get("uploaded_at", "")
+        books = (record.get("analysis") or {}).get("data", {}).get("books", [])
+        if not books:
+            rows.append(
+                {
+                    "library_id": library_id,
+                    "uploaded_at": uploaded_at,
+                    "title": "",
+                    "author": "",
+                    "publisher": "",
+                }
+            )
+            continue
+        for book in books:
+            rows.append(
+                {
+                    "library_id": library_id,
+                    "uploaded_at": uploaded_at,
+                    "title": str(book.get("title") or ""),
+                    "author": str(book.get("author") or ""),
+                    "publisher": str(book.get("publisher") or ""),
+                }
+            )
+
+    return render_template(
+        "records.html",
+        library_id=library_id,
+        rows=rows,
+        email=session.get("email"),
+    )
+
+
 @app.post("/libraries/<library_id>/photos")
 def upload_photo(library_id: str):
     guard = _require_login()

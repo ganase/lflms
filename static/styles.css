@@ -63,8 +63,8 @@ input[type="email"] {
 
 button {
   padding: 10px 16px;
-  background: #1d4ed8;
-  color: #fff;
+  background: #9ca3af;
+  color: #111827;
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -72,7 +72,8 @@ button {
 }
 
 button:hover {
-  background: #1e40af;
+  background: #6b7280;
+  color: #fff;
 }
 
 button.secondary {
@@ -132,6 +133,63 @@ figcaption {
 .caption-meta {
   display: grid;
   gap: 4px;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.title {
+  color: #475569;
+}
+
+.logo {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  object-fit: cover;
+}
+
+.tabs {
+  display: flex;
+  gap: 12px;
+}
+
+.tab {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #1f2937;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.tab.active {
+  background: #94a3b8;
+  color: #fff;
+}
+
+.table {
+  display: grid;
+  gap: 12px;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 120px 180px 1fr 1fr 1fr;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  align-items: center;
+  font-size: 14px;
+}
+
+.table-header {
+  font-weight: 600;
+  color: #475569;
 }
 
 .book-list {
