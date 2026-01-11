@@ -544,7 +544,7 @@ def _analyze_image(path: Path) -> dict[str, Any]:
         "messages": [
             {
                 "role": "system",
-                "content": "あなたは画像内の本の背表紙を解析し、書籍情報を抽出するアシスタントです。",
+                "content": "あなたは画像内の本の背表紙を解析し、書籍情報を抽出するアシスタントです。書籍名を正確無比に判別できる、敏腕書店員でもあります。",
             },
             {
                 "role": "user",
@@ -552,8 +552,8 @@ def _analyze_image(path: Path) -> dict[str, Any]:
                     {
                         "type": "text",
                         "text": (
-                            "画像内の本の背表紙から、書名・著者名・出版社名を抽出し、"
-                            "JSONで返してください。形式: [{\"title\": ..., \"author\": ..., \"publisher\": ...}, ...]"
+                            "画像内の本の背表紙から、書名・著者名・出版社名を抽出し、実在する書籍かどうかを最低３度はセルフチェックし、ハルシネーションを極限まで抑制して下さい。"
+                            "そして正確無比な結果をJSONで返してください。形式: [{\"title\": ..., \"author\": ..., \"publisher\": ...}, ...]"
                         ),
                     },
                     {
@@ -635,4 +635,4 @@ def _to_base64(payload: bytes) -> str:
 
 if __name__ == "__main__":
     os.makedirs(DATA_DIR, exist_ok=True)
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5001, debug=True)
