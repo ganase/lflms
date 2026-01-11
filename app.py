@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -69,11 +69,17 @@ def index() -> str:
     if guard:
         return guard
 
+    email = session.get("email")
     libraries = sorted(
         [p.name for p in DATA_DIR.iterdir() if p.is_dir()],
         key=str.casefold,
     )
-    return render_template("index.html", libraries=libraries, email=session.get("email"))
+    return render_template(
+        "index.html",
+        libraries=libraries,
+        email=email,
+        login_prefix=_email_prefix(email),
+    )
 
 
 @app.post("/libraries")
@@ -89,6 +95,7 @@ def create_library():
             libraries=_library_list(),
             error="IDは3〜32文字の英数字・ハイフン・アンダースコアで入力してください。",
             email=session.get("email"),
+            login_prefix=_email_prefix(session.get("email")),
         )
 
     library_path = DATA_DIR / library_id
@@ -98,6 +105,7 @@ def create_library():
             libraries=_library_list(),
             error="同じIDがすでに登録されています。",
             email=session.get("email"),
+            login_prefix=_email_prefix(session.get("email")),
         )
 
     library_path.mkdir(parents=True)
@@ -119,7 +127,13 @@ def library_detail(library_id: str) -> str:
         reverse=True,
     )
     records = _load_records(library_id)
-    records_by_name = {record["filename"]: record for record in records}
+    records_by_name = {}
+    for record in records:
+        record_copy = dict(record)
+        record_copy["uploaded_at_display"] = _format_datetime_jst(record.get("uploaded_at"))
+        record_copy["capture_date_display"] = _format_datetime_jst(record.get("capture_date"))
+        record_copy["books_text"] = _books_text(record_copy)
+        records_by_name[record["filename"]] = record_copy
     return render_template(
         "library.html",
         library_id=library_id,
@@ -142,7 +156,7 @@ def library_records(library_id: str) -> str:
     records = _load_records(library_id)
     rows: list[dict[str, str]] = []
     for record in records:
-        uploaded_at = record.get("uploaded_at", "")
+        uploaded_at = _format_datetime_jst(record.get("uploaded_at", ""))
         books = (record.get("analysis") or {}).get("data", {}).get("books", [])
         if not books:
             rows.append(
@@ -203,7 +217,7 @@ def upload_photo(library_id: str):
             email=session.get("email"),
         )
 
-    timestamp = datetime.now(timezone.utc)
+    timestamp = datetime.now(timezone.utc).replace(second=0, microsecond=0)
     stored_name = f"{timestamp.strftime('%Y%m%dT%H%M%SZ')}_{filename}"
     stored_path = library_path / stored_name
     file.save(stored_path)
@@ -213,11 +227,53 @@ def upload_photo(library_id: str):
 
     record = {
         "filename": stored_name,
-        "uploaded_at": timestamp.isoformat(),
+        "uploaded_at": timestamp.isoformat(timespec="minutes"),
         "capture_date": capture_date,
         "analysis": analysis,
     }
     _append_record(library_id, record)
+
+    return redirect(url_for("library_detail", library_id=library_id))
+
+
+@app.post("/libraries/<library_id>/photos/<path:filename>/analysis")
+def update_photo_analysis(library_id: str, filename: str):
+    guard = _require_login()
+    if guard:
+        return guard
+
+    library_path = DATA_DIR / library_id
+    if not library_path.exists():
+        abort(404)
+
+    records = _load_records(library_id)
+    updated = False
+    for record in records:
+        if record.get("filename") != filename:
+            continue
+        lines = request.form.get("books", "").strip().splitlines()
+        books: list[dict[str, str]] = []
+        for line in lines:
+            if not line.strip():
+                continue
+            parts = [part.strip() for part in line.split("/", 2)]
+            while len(parts) < 3:
+                parts.append("")
+            books.append(
+                {
+                    "title": parts[0],
+                    "author": parts[1],
+                    "publisher": parts[2],
+                }
+            )
+        record["analysis"] = {"status": "ok", "data": {"books": books}}
+        updated = True
+        break
+
+    if updated:
+        record_path = _records_path(library_id)
+        with record_path.open("w", encoding="utf-8") as handle:
+            json.dump(records, handle, ensure_ascii=False, indent=2)
 
     return redirect(url_for("library_detail", library_id=library_id))
 
@@ -239,6 +295,12 @@ def _library_list() -> list[str]:
         [p.name for p in DATA_DIR.iterdir() if p.is_dir()],
         key=str.casefold,
     )
+
+
+def _email_prefix(email: str | None) -> str:
+    if not email:
+        return ""
+    return f" {email.split('@', 1)[0]}"
 
 
 def _photo_list(library_id: str) -> list[str]:
@@ -277,7 +339,14 @@ def _append_record(library_id: str, record: dict[str, Any]) -> None:
 
 
 def _records_map(library_id: str) -> dict[str, dict[str, Any]]:
-    return {record["filename"]: record for record in _load_records(library_id)}
+    records_by_name = {}
+    for record in _load_records(library_id):
+        record_copy = dict(record)
+        record_copy["uploaded_at_display"] = _format_datetime_jst(record.get("uploaded_at"))
+        record_copy["capture_date_display"] = _format_datetime_jst(record.get("capture_date"))
+        record_copy["books_text"] = _books_text(record_copy)
+        records_by_name[record["filename"]] = record_copy
+    return records_by_name
 
 
 def _extract_capture_date(path: Path) -> str | None:
@@ -299,7 +368,33 @@ def _extract_capture_date(path: Path) -> str | None:
     except ValueError:
         return None
 
-    return parsed.replace(tzinfo=timezone.utc).isoformat()
+    return parsed.replace(tzinfo=timezone.utc, second=0, microsecond=0).isoformat(timespec="minutes")
+
+
+def _format_datetime_jst(value: str | None) -> str:
+    if not value:
+        return ""
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return value
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    jst = parsed.astimezone(timezone(timedelta(hours=9)))
+    return jst.isoformat(timespec="minutes")
+
+
+def _books_text(record: dict[str, Any]) -> str:
+    books = (record.get("analysis") or {}).get("data", {}).get("books", [])
+    lines = []
+    for book in books:
+        title = str(book.get("title") or "").strip()
+        author = str(book.get("author") or "").strip()
+        publisher = str(book.get("publisher") or "").strip()
+        if not any([title, author, publisher]):
+            continue
+        lines.append(f"{title}/{author}/{publisher}".strip("/"))
+    return "\n".join(lines)
 
 
 def _analyze_image(path: Path) -> dict[str, Any]:
