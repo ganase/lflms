@@ -283,7 +283,7 @@ def _analyze_image(path: Path) -> dict[str, Any]:
                         "type": "text",
                         "text": (
                             "画像内の本の背表紙から、書名・著者名・出版社名を抽出し、"
-                            "JSONで返してください。形式: {\"title\": ..., \"author\": ..., \"publisher\": ...}"
+                            "JSONで返してください。形式: [{\"title\": ..., \"author\": ..., \"publisher\": ...}, ...]"
                         ),
                     },
                     {
@@ -312,7 +312,8 @@ def _analyze_image(path: Path) -> dict[str, Any]:
         data = response.json()
         content = data["choices"][0]["message"]["content"]
         parsed = _parse_json_content(content)
-        return {"status": "ok", "data": parsed}
+        normalized = _normalize_analysis_data(parsed)
+        return {"status": "ok", "data": normalized}
     except Exception as exc:
         return {"status": "error", "reason": str(exc)}
 
@@ -321,6 +322,12 @@ def _parse_json_content(content: str) -> dict[str, Any]:
     try:
         return json.loads(content)
     except json.JSONDecodeError:
+        list_match = re.search(r"\[.*\]", content, re.DOTALL)
+        if list_match:
+            try:
+                return json.loads(list_match.group(0))
+            except json.JSONDecodeError:
+                pass
         match = re.search(r"\{.*\}", content, re.DOTALL)
         if not match:
             return {"raw": content}
@@ -328,6 +335,26 @@ def _parse_json_content(content: str) -> dict[str, Any]:
             return json.loads(match.group(0))
         except json.JSONDecodeError:
             return {"raw": content}
+
+
+def _normalize_analysis_data(parsed: Any) -> dict[str, Any]:
+    if isinstance(parsed, list):
+        return {"books": [_sanitize_book(item) for item in parsed if isinstance(item, dict)]}
+    if isinstance(parsed, dict):
+        if "books" in parsed and isinstance(parsed["books"], list):
+            return {"books": [_sanitize_book(item) for item in parsed["books"] if isinstance(item, dict)]}
+        if {"title", "author", "publisher"}.intersection(parsed.keys()):
+            return {"books": [_sanitize_book(parsed)]}
+        return parsed
+    return {"raw": parsed}
+
+
+def _sanitize_book(item: dict[str, Any]) -> dict[str, str]:
+    return {
+        "title": str(item.get("title") or "").strip(),
+        "author": str(item.get("author") or "").strip(),
+        "publisher": str(item.get("publisher") or "").strip(),
+    }
 
 
 def _to_base64(payload: bytes) -> str:

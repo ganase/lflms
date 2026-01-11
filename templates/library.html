@@ -51,11 +51,28 @@
                       {% endif %}
                     </div>
                     {% if record.analysis and record.analysis.status == 'ok' %}
-                      <div class="caption-meta">
-                        <span>書名: {{ record.analysis.data.title }}</span>
-                        <span>著者: {{ record.analysis.data.author }}</span>
-                        <span>出版社: {{ record.analysis.data.publisher }}</span>
-                      </div>
+                      {% if record.analysis.data.books %}
+                        <div class="caption-meta">
+                          <span>書名:</span>
+                          <ul class="book-list">
+                            {% for book in record.analysis.data.books %}
+                              <li>{{ book.title }}</li>
+                            {% endfor %}
+                          </ul>
+                          <span>著者:</span>
+                          <ul class="book-list">
+                            {% for book in record.analysis.data.books %}
+                              <li>{{ book.author }}</li>
+                            {% endfor %}
+                          </ul>
+                          <span>出版社:</span>
+                          <ul class="book-list">
+                            {% for book in record.analysis.data.books %}
+                              <li>{{ book.publisher }}</li>
+                            {% endfor %}
+                          </ul>
+                        </div>
+                      {% endif %}
                     {% elif record.analysis %}
                       <div class="caption-meta muted">解析: {{ record.analysis.status }} {{ record.analysis.reason }}</div>
                     {% endif %}

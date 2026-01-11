@@ -134,6 +134,13 @@ figcaption {
   gap: 4px;
 }
 
+.book-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 2px;
+}
+
 .text-link {
   color: #1d4ed8;
   text-decoration: none;
