@@ -8,15 +8,22 @@ Mac
 
 2.git clone <このリポジトリのURL>
 
-cd lflms
+3.cd lflms
 
-3.python3 -m venv .venv
+4.python3 -m venv .venv
 
-source .venv/bin/activate
+5.source .venv/bin/activate
 
-4.python -m pip install --upgrade pip
+6.python -m pip install --upgrade pip
 
-python -m pip install -r requirements.txt
+7.python -m pip install -r requirements.txt
+
+8.export SECRET_KEY="0423"
+
+9.
+export OPENAI_API_KEY=""
+export OPENAI_MODEL="gpt-4o-mini"
+export OPENAI_BASE_URL="https://api.openai.com/v1"
 
 5.python app.py
 
