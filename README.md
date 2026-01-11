@@ -5,6 +5,7 @@ Management application of your little free library
 Mac
 
 1.Open terminal
+rm -rf lflms
 
 2.git clone <このリポジトリのURL>
 
