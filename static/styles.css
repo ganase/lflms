@@ -234,6 +234,11 @@ figcaption {
   font-weight: 600;
 }
 
+.message {
+  color: #23b8c4;
+  font-weight: 600;
+}
+
 .muted {
   color: #6b7280;
 }

@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import secrets
+import smtplib
 from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +21,7 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 try:
@@ -36,6 +40,38 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key")
 
 
+@app.get("/register")
+def register_form() -> str:
+    return render_template("register.html")
+
+
+@app.post("/register")
+def register_submit():
+    email = request.form.get("email", "").strip().lower()
+    if not EMAIL_PATTERN.match(email):
+        return render_template("register.html", error="有効なメールアドレスを入力してください。")
+
+    users = _load_users()
+    token = secrets.token_urlsafe(16)
+    users[email] = {
+        "email": email,
+        "password_hash": users.get(email, {}).get("password_hash"),
+        "verification_token": token,
+        "verified": False,
+    }
+    _save_users(users)
+
+    verification_url = url_for("verify_form", token=token, _external=True)
+    try:
+        _send_verification_email(email, verification_url)
+    except RuntimeError as exc:
+        return render_template("register.html", error=str(exc))
+    return render_template(
+        "register.html",
+        message="確認メールを送信しました。メールのリンクから認証してください。",
+    )
+
+
 @app.get("/login")
 def login_form() -> str:
     return render_template("login.html")
@@ -44,8 +80,18 @@ def login_form() -> str:
 @app.post("/login")
 def login_submit():
     email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
     if not EMAIL_PATTERN.match(email):
         return render_template("login.html", error="有効なメールアドレスを入力してください。")
+
+    users = _load_users()
+    user = users.get(email)
+    if not user or not user.get("password_hash"):
+        return render_template("login.html", error="登録済みのメールアドレスでログインしてください。")
+    if not user.get("verified"):
+        return render_template("login.html", error="メール認証が完了していません。")
+    if not check_password_hash(user["password_hash"], password):
+        return render_template("login.html", error="パスワードが正しくありません。")
 
     session["email"] = email
     return redirect(url_for("index"))
@@ -55,6 +101,37 @@ def login_submit():
 def logout():
     session.clear()
     return redirect(url_for("login_form"))
+
+
+@app.get("/verify/<token>")
+def verify_form(token: str) -> str:
+    email = _find_email_by_token(token)
+    if not email:
+        return render_template("verify.html", error="認証リンクが無効です。")
+    return render_template("verify.html", token=token)
+
+
+@app.post("/verify/<token>")
+def verify_submit(token: str):
+    email = _find_email_by_token(token)
+    if not email:
+        return render_template("verify.html", error="認証リンクが無効です。")
+
+    password = request.form.get("password", "")
+    confirm = request.form.get("password_confirm", "")
+    if len(password) < 8:
+        return render_template("verify.html", token=token, error="パスワードは8文字以上で入力してください。")
+    if password != confirm:
+        return render_template("verify.html", token=token, error="パスワードが一致しません。")
+
+    users = _load_users()
+    users[email]["password_hash"] = generate_password_hash(password)
+    users[email]["verified"] = True
+    users[email]["verification_token"] = None
+    _save_users(users)
+
+    session["email"] = email
+    return redirect(url_for("index"))
 
 
 def _require_login():
@@ -315,6 +392,10 @@ def _records_path(library_id: str) -> Path:
     return DATA_DIR / library_id / "records.json"
 
 
+def _users_path() -> Path:
+    return DATA_DIR / "users.json"
+
+
 def _is_photo(path: Path) -> bool:
     if not path.is_file():
         return False
@@ -328,6 +409,29 @@ def _load_records(library_id: str) -> list[dict[str, Any]]:
         return []
     with record_path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def _load_users() -> dict[str, dict[str, Any]]:
+    users_path = _users_path()
+    if not users_path.exists():
+        return {}
+    with users_path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _save_users(users: dict[str, dict[str, Any]]) -> None:
+    users_path = _users_path()
+    users_path.parent.mkdir(parents=True, exist_ok=True)
+    with users_path.open("w", encoding="utf-8") as handle:
+        json.dump(users, handle, ensure_ascii=False, indent=2)
+
+
+def _find_email_by_token(token: str) -> str | None:
+    users = _load_users()
+    for email, info in users.items():
+        if info.get("verification_token") == token:
+            return email
+    return None
 
 
 def _append_record(library_id: str, record: dict[str, Any]) -> None:
@@ -395,6 +499,32 @@ def _books_text(record: dict[str, Any]) -> str:
             continue
         lines.append(f"{title}/{author}/{publisher}".strip("/"))
     return "\n".join(lines)
+
+
+def _send_verification_email(recipient: str, verification_url: str) -> None:
+    host = os.environ.get("SMTP_HOST")
+    port = int(os.environ.get("SMTP_PORT", "587"))
+    user = os.environ.get("SMTP_USER")
+    password = os.environ.get("SMTP_PASSWORD")
+    sender = os.environ.get("SMTP_FROM", user or "noreply@example.com")
+
+    if not host:
+        raise RuntimeError("SMTP_HOSTが未設定です。")
+
+    message = EmailMessage()
+    message["Subject"] = "メール認証のご案内"
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content(
+        "以下のリンクを開き、パスワードを設定して登録を完了してください。\n\n"
+        f"{verification_url}\n"
+    )
+
+    with smtplib.SMTP(host, port) as smtp:
+        smtp.starttls()
+        if user and password:
+            smtp.login(user, password)
+        smtp.send_message(message)
 
 
 def _analyze_image(path: Path) -> dict[str, Any]:
